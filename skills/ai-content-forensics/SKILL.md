@@ -140,13 +140,16 @@ At a high level:
 1. Resolve the target creator to a canonical channel
 2. Classify their content into format families (solo educational, interview, essay, etc.)
 3. Build a reference profile of the user's channel (if provided)
-4. Collect all qualifying long-form video data (metadata, transcripts, thumbnails, metrics)
-5. Extract detailed packaging features per video (title, thumbnail, hook, structure)
-6. Run 5-layer analysis (age-adjusted scoring → single-feature → interaction effects → archetype clustering → portability → synthesis)
-7. Create 6 operational constitutions (master, title, thumbnail, hook, script/structure, visual production)
-8. Write an exhaustive synthesis with 15+ ranked insight candidates
-9. **Present findings to user for review** — Show the top 10-15 findings with their evidence and ask "do these look right?" before proceeding to thread writing. This is a mandatory checkpoint — the pipeline should not proceed automatically.
-10. **Self-verify** — Spot-check 5 key claims against raw data before presenting to user
+4. Collect all qualifying video metadata via YouTube Data API
+5. **Download ALL thumbnails** (fast, do this before transcripts — see `references/phase1_research.md` Thumbnail Download section)
+6. Extract transcripts via Chrome CDP
+7. Run Gemini visual analysis on top/bottom performers
+8. Extract detailed packaging features per video (title, thumbnail, hook, structure)
+9. Run 5-layer analysis (age-adjusted scoring → single-feature → interaction effects → archetype clustering → portability → synthesis)
+10. Create 6 operational constitutions (master, title, thumbnail, hook, script/structure, visual production)
+11. Write an exhaustive synthesis with 15+ ranked insight candidates
+12. **Present findings to user for review** — Show the top 10-15 findings with their evidence and ask "do these look right?" before proceeding to thread writing. This is a mandatory checkpoint — the pipeline should not proceed automatically.
+13. **Self-verify** — Spot-check 5 key claims against raw data before presenting to user
 
 **If `output_mode` is `research_only`**: Stop here. Write the final report and return results to the user.
 

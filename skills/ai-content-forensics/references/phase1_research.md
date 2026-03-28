@@ -109,26 +109,55 @@ For every data point, try these sources in order and stop at the first success:
 
 4. **Transcripts** — USE THE CHROME CDP METHOD (see below). Do NOT use `youtube-transcript-api`, `yt-dlp`, or direct HTTP to `/api/timedtext` — YouTube aggressively 429-blocks that endpoint. The Chrome CDP method is the only reliable approach for bulk extraction.
 
-5. **Thumbnails**: Download the actual thumbnail image for every qualifying video.
+5. **Thumbnails**: See the **Thumbnail Download** section below.
 
-   ```python
-   import urllib.request
-   url = video["thumbnailUrl"]  # from API response (maxres or high)
-   urllib.request.urlretrieve(url, f"{TRANS_DIR}/../thumbnails/{video_id}.jpg")
-   ```
+### Thumbnail Download (MANDATORY — Do Not Skip)
 
-   Save to `raw/thumbnails/{video_id}.jpg`. If download fails, save the URL and log the failure.
+**This step is separate from transcript extraction. Do it immediately after collecting video metadata, BEFORE starting transcript extraction.** Thumbnails are fast to download and critical for packaging analysis.
 
-   **Thumbnail visual analysis**: Claude is multimodal. After downloading, analyze each thumbnail image to extract:
-   - Face count and which face is dominant
-   - Emotion/expression (neutral, surprise, concern, joy, etc.)
-   - Text overlay (transcribe any text on the thumbnail)
-   - Background complexity (simple solid/gradient vs. detailed scene)
-   - Color palette (dominant colors, contrast level)
-   - Composition style (centered face, rule of thirds, split frame, etc.)
-   - Whether it contains screenshots, diagrams, props, or B-roll frames
+Download the actual thumbnail image for every qualifying video:
 
-   For the top 25 and bottom 25 videos by total views, read each thumbnail image and record these features in `06_packaging_features.json`. For the full corpus, batch-analyze in groups of 10-20 to manage context.
+```python
+import urllib.request, os, json
+
+BASE = "research/youtube-packaging/{creator-slug}"
+THUMB_DIR = f"{BASE}/raw/thumbnails"
+os.makedirs(THUMB_DIR, exist_ok=True)
+
+with open(f"{BASE}/05_video_index.json") as f:
+    videos = json.load(f)
+
+for v in videos:
+    video_id = v["videoId"]
+    url = v.get("thumbnailUrl", "")
+    if not url:
+        continue
+    outpath = f"{THUMB_DIR}/{video_id}.jpg"
+    if os.path.exists(outpath):
+        continue  # Skip already downloaded
+    try:
+        urllib.request.urlretrieve(url, outpath)
+    except Exception as e:
+        print(f"Failed {video_id}: {e}")
+        # Log failure but continue
+
+print(f"Downloaded {len(os.listdir(THUMB_DIR))} thumbnails")
+```
+
+Save to `raw/thumbnails/{video_id}.jpg`. If download fails, save the URL in the video index and log the failure in `logs/fallback_log.md`.
+
+**Thumbnail visual analysis**: Claude is multimodal. After downloading, analyze each thumbnail image to extract:
+- Face count and which face is dominant
+- Emotion/expression (neutral, surprise, concern, joy, etc.)
+- Text overlay (transcribe any text on the thumbnail)
+- Background complexity (simple solid/gradient vs. detailed scene)
+- Color palette (dominant colors, contrast level)
+- Composition style (centered face, rule of thirds, split frame, etc.)
+- Whether it contains screenshots, diagrams, props, or B-roll frames
+
+For the top 25 and bottom 25 videos by total views, read each thumbnail image and record these features in `06_packaging_features.json`. For the full corpus, batch-analyze in groups of 10-20 to manage context.
+
+**Why this is mandatory**: Thumbnail analysis is one of the three pillars of packaging analysis (title, thumbnail, hook). Skipping it means the thumbnail constitution (Step 7) has no evidence base. Claude can read images — there is no technical reason to skip this step.
 
 ### Transcript Extraction — Chrome CDP Method (MANDATORY)
 
