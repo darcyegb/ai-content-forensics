@@ -61,24 +61,37 @@ This skill is designed to work with whatever tools are available. Here's the hie
 - **Claude itself** — The analysis, writing, and visual generation all happen in-context
 - **Web search** — Built into Claude Code and Cowork. This alone is enough to collect video metadata, find transcripts, and gather channel data
 
+### Required for transcript extraction
+- **Google Chrome** — Must be installed locally. The user's signed-in Chrome profile is needed to bypass YouTube's rate limiting and bot detection on transcript endpoints.
+- **Node.js + Playwright** — `npm install playwright` in the working directory. Used to connect to Chrome via CDP and scrape transcript DOM elements.
+- **YouTube Data API key** — Stored in `~/.claude/secrets.env`. Source it at the start of every run. MANDATORY — do not proceed without it. Do not fall back to web search for metadata.
+
+### Required for visual analysis of video content
+- **Gemini API** (`pip install google-genai`) — Uses `gemini-3.1-pro-preview` to analyze actual video content directly from YouTube URLs via `types.Part.from_uri(file_uri="https://www.youtube.com/watch?v=VIDEO_ID", mime_type="video/youtube")`. Examines set design, camera work, on-screen graphics, B-roll, visual branding, and production quality. Production-tested: processes ~2 min per video, outputs 7-10K chars of detailed analysis per video, ~$0.025/min of video content. Budget 10 hours per channel (~$27). The same API key used for YouTube Data API works for Gemini. **CRITICAL**: Always set `max_output_tokens=65536` — the default (8192) silently truncates output. Do NOT use `gemini-2.5-flash` or `gemini-2.5-pro` — their 1M token context rejects any video over ~65 minutes. Only `gemini-3.1-pro-preview` works for long-form content.
+
 ### Enhances quality if available (not required)
-- **YouTube Data API** — Faster, more structured data collection. Set `YOUTUBE_API_KEY` in your environment if you have one
-- **Gemini API** — Google's Gemini models can natively analyze YouTube videos by URL — visual content, audio, transcripts, facial expressions, energy levels, production style. This is the only tool that can "watch" a video like a human viewer. Set `GOOGLE_API_KEY` or `GEMINI_API_KEY` in your environment. See `references/phase1_research.md` for model selection, prompts, and integration details.
 - **Apify MCP** — Enables deeper web scraping when search alone isn't sufficient
-- **Chrome MCP / computer-use** — Enables browser automation for transcript extraction and publishing
 - **Headless browser** (puppeteer/playwright) — Enables PNG rendering of carousel visuals
 - **YouTube Analytics API** — If the user owns or manages the target channel, OAuth2 credentials enable access to click-through rate (CTR), impressions, retention curves, and traffic sources. CTR is a far better packaging metric than total views. Set up OAuth2 credentials in Google Cloud Console if available.
 
 ### What happens without optional tools
-The skill gracefully degrades. Without the YouTube API, it uses web search to find video metadata one by one — slower but functional. Without Apify, it falls back to web search results. Without a headless browser, it produces SVG + HTML visuals (which look identical) and skips PNG export. Every fallback is logged in `logs/fallback_log.md`.
+Without Apify, falls back to web search results. Without a headless browser for PNG rendering, produces SVG + HTML visuals (which look identical) and skips PNG export. Every fallback is logged in `logs/fallback_log.md`.
+
+### What does NOT work for transcripts (do not attempt)
+- `youtube-transcript-api` Python library (any version) — hits `/api/timedtext` → HTTP 429
+- `yt-dlp --write-auto-subs` (even with `--cookies-from-browser`) — same endpoint → HTTP 429
+- Direct HTTP/curl to `/api/timedtext` — same 429
+- YouTube Data API `captions.download` — requires OAuth2, only works for videos you own
+- YouTube innertube `get_transcript` without real Chrome profile — HTTP 400 "Precondition check failed"
+- Playwright `launchPersistentContext` — times out when Chrome needs user interaction
 
 ## Environment Adaptation
 
 This skill runs in both Claude Code (terminal) and Cowork (desktop app). Detect what's available and adapt:
 
 - **YouTube Data API**: Check for `YOUTUBE_API_KEY` in the environment. If available, use API-first. If not, fall back to web search for metadata collection, then try scraping tools (Apify RAG browser) if search results are insufficient.
-- **Transcript extraction**: The `youtube-transcript-api` Python library is the primary tool (`pip install youtube-transcript-api`). If it fails (429/403), the **Gemini API** can extract transcripts directly from YouTube URLs — bypassing all timedtext/innertube rate limits. The official YouTube Captions API (`captions.download`) **only works for the channel owner** — do not attempt to use it for third-party channels regardless of credentials. See `references/phase1_research.md` for the full fallback chain, Gemini integration, and code examples.
-- **Gemini video analysis**: Check for `GOOGLE_API_KEY` or `GEMINI_API_KEY`. If available, Gemini enables deep visual analysis of video content (production style, energy shifts, on-screen text, facial expressions) that goes far beyond what metadata or transcript analysis can reveal. Use `gemini-3-flash-preview` for bulk analysis, `gemini-3.1-pro-preview` for deep dives on top performers. **CRITICAL: Always set `max_output_tokens=65536`** — the default (8192) silently truncates output.
+- **Transcript extraction**: USE THE CHROME CDP METHOD described in `references/phase1_research.md`. This is mandatory — all other transcript methods (youtube-transcript-api, yt-dlp, direct timedtext HTTP) get 429-blocked by YouTube. The Chrome CDP method copies the user's Chrome profile, launches Chrome with `--remote-debugging-port=9222`, connects Playwright via `connectOverCDP`, and scrapes transcripts from the DOM by clicking "Show transcript". Requires the user to quit Chrome first.
+- **Gemini video analysis**: Check for `GOOGLE_API_KEY` or `GEMINI_API_KEY`. If available, enables deep visual analysis of video content (production style, energy shifts, on-screen text, facial expressions). Use `gemini-3.1-pro-preview` for all video analysis. **CRITICAL: Always set `max_output_tokens=65536`** — the default (8192) silently truncates output.
 - **Thumbnail downloads**: Direct download if possible, otherwise save URLs and note the limitation.
 - **Browser automation**: In Claude Code, use shell commands. In Cowork, use available MCP tools (Chrome, computer-use).
 - **File output**: In Claude Code, write to the local project folder. In Cowork, write to the outputs directory.
@@ -87,12 +100,13 @@ Always log which path was used for each data collection step in `logs/fallback_l
 
 ### Data Collection Fallback Chain
 
-For each data point, the skill tries sources in this order and stops at the first success:
+For **video metadata** (titles, views, dates, durations), try in order:
+1. **YouTube Data API** → structured, fast, reliable. MANDATORY — source `~/.claude/secrets.env` first.
+2. **Web search** → fallback if API quota exhausted
+3. **Manual prompt** → if critical data is truly unfindable, ask the user one precise question
 
-1. **YouTube Data API** → structured, fast, reliable
-2. **Apify RAG browser** → scrapes the actual page
-3. **Web search** → searches for the information and extracts from results
-4. **Manual prompt** → if critical data is truly unfindable, ask the user one precise question
+For **transcripts**, there is ONE method:
+1. **Chrome CDP + Playwright DOM scraping** → see `references/phase1_research.md` for full protocol. No fallback — this is the only reliable approach.
 
 If a non-critical data point is unavailable from all sources, log it in `logs/fallback_log.md` and continue. Never fabricate data to fill gaps.
 
@@ -128,8 +142,8 @@ At a high level:
 3. Build a reference profile of the user's channel (if provided)
 4. Collect all qualifying long-form video data (metadata, transcripts, thumbnails, metrics)
 5. Extract detailed packaging features per video (title, thumbnail, hook, structure)
-6. Run 4-layer analysis (descriptive → comparative → portability → synthesis)
-7. Create 5 operational constitutions (master, title, thumbnail, hook, script/structure)
+6. Run 5-layer analysis (age-adjusted scoring → single-feature → interaction effects → archetype clustering → portability → synthesis)
+7. Create 6 operational constitutions (master, title, thumbnail, hook, script/structure, visual production)
 8. Write an exhaustive synthesis with 15+ ranked insight candidates
 9. **Present findings to user for review** — Show the top 10-15 findings with their evidence and ask "do these look right?" before proceeding to thread writing. This is a mandatory checkpoint — the pipeline should not proceed automatically.
 10. **Self-verify** — Spot-check 5 key claims against raw data before presenting to user
