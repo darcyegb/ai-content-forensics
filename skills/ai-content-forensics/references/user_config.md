@@ -18,6 +18,10 @@ When invoked, collect these inputs from the user. Only `target_youtuber` is requ
 | `visual_background` | no | #f7f4ee | Background color for visuals |
 | `visual_accent` | no | #8f1d1d | Accent color for visuals |
 | `visual_text` | no | #111111 | Text color for visuals |
+| `output_dir` | no | `research/youtube-packaging/{creator-slug}/` | Custom output directory. If the user specifies a path, use it instead of the default. Ask if they have a preferred location before starting. |
+| `comparison_channel` | no | none | A second YouTube channel to compare against the target. Enables differential analysis: what does Channel A do differently from Channel B? |
+| `youtube_analytics_oauth` | no | none | Path to OAuth2 credentials JSON for YouTube Analytics API. Enables CTR, impressions, and retention data for channels you own or manage. |
+| `collect_comments` | no | false | Whether to collect and analyze top comments for packaging signals. API-quota-intensive. |
 
 ## How to Collect
 
@@ -31,6 +35,8 @@ Then:
 - Your YouTube channel handle (for portability comparison)?
 - Your Threads/X/LinkedIn handle (for the CTA in the final thread)?
 - Output mode: full pipeline, research only, or thread only?
+- Output directory (where to save the analysis)?
+- A second channel to compare against?
 - Any custom time window or visual colors?
 
 Or I can just use the defaults and get started."

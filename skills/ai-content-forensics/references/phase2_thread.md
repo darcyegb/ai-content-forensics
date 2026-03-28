@@ -31,10 +31,11 @@ If `reference_creator_name` and `reference_creator_context` are provided:
 
 ## Thread Structure
 
-Output exactly 9 posts:
+Output 9 posts by default (hook + 7 insights + closer). The insight count can be adjusted between 5 and 12 based on how many survive the Phase 1 validation gate. Fewer strong insights is better than padding with weaker ones. If the validated insight list has fewer than 7 strong candidates, reduce to match. If it has more than 7, you may expand — but every additional insight must clear the same quality bar.
+
 - **Post 1** = hook
-- **Posts 2-8** = exactly 7 distinct insights
-- **Post 9** = final closer / CTA
+- **Posts 2-N** = distinct insights (default 7)
+- **Final Post** = closer / CTA
 
 Separate each post with a line that contains only the em dash character: **—**
 
@@ -236,7 +237,7 @@ Threads takeaway:
 
 ## Insight Selection
 
-From the ranked insight list in the synthesis (Phase 1, Step 8), select exactly 7.
+From the ranked insight list in the synthesis (Phase 1, Step 8), select 7 by default. Adjust the count based on how many insights survived the validation gate at full quality. Minimum 5, maximum 12.
 
 Each chosen insight must be:
 1. Genuinely surprising, counterintuitive, or non-obvious

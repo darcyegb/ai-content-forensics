@@ -34,10 +34,25 @@ Before declaring the pipeline complete, verify everything across all 4 phases:
 - [ ] Constitutions cite actual corpus evidence
 - [ ] Portability analysis applied correctly (or skipped if no reference channel)
 - [ ] Synthesis contains ranked list of 15+ insight candidates
+- [ ] All metrics computed upfront (total views, VPD, age-filtered VPD)
+- [ ] Metric diagnostic run and results logged
+- [ ] Sensitivity analysis completed
+- [ ] Event-driven outliers flagged
+- [ ] Format family tagged on every video
+- [ ] Multi-host detection completed (if applicable)
+- [ ] Natural experiments identified and documented with full dossiers
+- [ ] Findings reviewed with user before proceeding to Phase 2
+- [ ] Thumbnail images downloaded for at least top 25 + bottom 25 videos
+- [ ] Thumbnail visual analysis completed (face count, emotion, text, composition)
+- [ ] Self-verification completed: top 5 claims spot-checked against raw data (logged in verification_log.md)
+- [ ] Statistical significance assessed for top findings (sample sizes reported, permutation tests where applicable)
+- [ ] Feature correlation matrix computed (correlated features identified)
+- [ ] Temporal trends documented
+- [ ] Comments collected for top 10 + bottom 10 (if API quota permits)
 
 ### Phase 2 Verification
-- [ ] Thread has exactly 9 posts separated by em dashes (—)
-- [ ] All 7 insights backed by exact corpus numbers
+- [ ] Thread has the correct number of posts (default 9, adjusted if insight count differs) separated by em dashes (—)
+- [ ] All insights backed by exact corpus numbers
 - [ ] No fabricated statistics
 - [ ] Insight selection criteria satisfied (counterintuitive, diverse categories)
 - [ ] Voice is consistent (natural casing, sharp, evidence-led)
@@ -48,7 +63,7 @@ Before declaring the pipeline complete, verify everything across all 4 phases:
 - [ ] All posts fit within platform character limits
 
 ### Phase 3 Verification
-- [ ] Exactly 9 visual assets created
+- [ ] Correct number of visual assets created (one per thread post)
 - [ ] Post order matches thread order
 - [ ] Hook text on cover is exact
 - [ ] Recap scope counts are exact

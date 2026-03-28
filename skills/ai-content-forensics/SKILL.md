@@ -32,11 +32,15 @@ Each phase must complete fully before the next begins. Do not skip phases or ble
 
 ### Output Modes
 
-The pipeline supports three output modes via the `output_mode` config:
+The pipeline supports multiple output modes via the `output_mode` config:
 
 - **`full`** (default) — Run all 4 phases: research → thread → visuals → publish
 - **`research_only`** — Run Phase 1 only. Produces the complete corpus analysis, constitutions, and synthesis without generating any thread or visuals. Use this when you want the research as a standalone deliverable.
 - **`thread_only`** — Run Phases 1 and 2. Produces research + the finished thread, but skips visual production. Use this for a faster run when you don't need carousel images.
+- **`creator_report`** — Run Phase 1, then generate a polished analysis document addressed directly to the creator (or to a colleague who knows the creator). Conversational, data-rich, not formatted as a social thread. Skips carousel visuals unless requested.
+- **`dashboard`** — Run Phase 1, then generate a self-contained interactive HTML dashboard that lets the user explore the data: filter by host, duration, title feature, format family, performance tier, etc. Includes sortable tables, scatter plots, and feature distribution charts. No thread or carousel visuals.
+
+For all modes that include Phase 2 or later: **present the Phase 1 findings to the user for review before proceeding.** Do not generate thread copy or visuals based on findings the user hasn't seen.
 
 ## Quick Start
 
@@ -59,9 +63,11 @@ This skill is designed to work with whatever tools are available. Here's the hie
 
 ### Enhances quality if available (not required)
 - **YouTube Data API** — Faster, more structured data collection. Set `YOUTUBE_API_KEY` in your environment if you have one
+- **Gemini API** — Google's Gemini models can natively analyze YouTube videos by URL — visual content, audio, transcripts, facial expressions, energy levels, production style. This is the only tool that can "watch" a video like a human viewer. Set `GOOGLE_API_KEY` or `GEMINI_API_KEY` in your environment. See `references/phase1_research.md` for model selection, prompts, and integration details.
 - **Apify MCP** — Enables deeper web scraping when search alone isn't sufficient
 - **Chrome MCP / computer-use** — Enables browser automation for transcript extraction and publishing
 - **Headless browser** (puppeteer/playwright) — Enables PNG rendering of carousel visuals
+- **YouTube Analytics API** — If the user owns or manages the target channel, OAuth2 credentials enable access to click-through rate (CTR), impressions, retention curves, and traffic sources. CTR is a far better packaging metric than total views. Set up OAuth2 credentials in Google Cloud Console if available.
 
 ### What happens without optional tools
 The skill gracefully degrades. Without the YouTube API, it uses web search to find video metadata one by one — slower but functional. Without Apify, it falls back to web search results. Without a headless browser, it produces SVG + HTML visuals (which look identical) and skips PNG export. Every fallback is logged in `logs/fallback_log.md`.
@@ -71,7 +77,8 @@ The skill gracefully degrades. Without the YouTube API, it uses web search to fi
 This skill runs in both Claude Code (terminal) and Cowork (desktop app). Detect what's available and adapt:
 
 - **YouTube Data API**: Check for `YOUTUBE_API_KEY` in the environment. If available, use API-first. If not, fall back to web search for metadata collection, then try scraping tools (Apify RAG browser) if search results are insufficient.
-- **Transcript extraction**: Official captions via API first → public transcript extraction services → web search for transcript content → log path used.
+- **Transcript extraction**: The `youtube-transcript-api` Python library is the primary tool (`pip install youtube-transcript-api`). If it fails (429/403), the **Gemini API** can extract transcripts directly from YouTube URLs — bypassing all timedtext/innertube rate limits. The official YouTube Captions API (`captions.download`) **only works for the channel owner** — do not attempt to use it for third-party channels regardless of credentials. See `references/phase1_research.md` for the full fallback chain, Gemini integration, and code examples.
+- **Gemini video analysis**: Check for `GOOGLE_API_KEY` or `GEMINI_API_KEY`. If available, Gemini enables deep visual analysis of video content (production style, energy shifts, on-screen text, facial expressions) that goes far beyond what metadata or transcript analysis can reveal. Use `gemini-3-flash-preview` for bulk analysis, `gemini-3.1-pro-preview` for deep dives on top performers. **CRITICAL: Always set `max_output_tokens=65536`** — the default (8192) silently truncates output.
 - **Thumbnail downloads**: Direct download if possible, otherwise save URLs and note the limitation.
 - **Browser automation**: In Claude Code, use shell commands. In Cowork, use available MCP tools (Chrome, computer-use).
 - **File output**: In Claude Code, write to the local project folder. In Cowork, write to the outputs directory.
@@ -103,6 +110,11 @@ These apply across all 4 phases:
 8. Exclude Shorts, clips, side feeds unless needed for disambiguation
 9. If a metric is unavailable, log it — do not fabricate
 10. Mixed-format creators: segment corpus by format family before analysis
+11. When comparing any two specific videos, download the full dossier for both: transcript, thumbnail, description, and all metadata. Do not compare based on title text alone.
+12. Tag every video with its format family and host (for multi-host channels). All analysis must be runnable per-segment.
+13. Download and visually analyze thumbnail images — do not skip thumbnail analysis because it requires image processing. Claude is multimodal and can analyze downloaded thumbnails.
+14. Self-verify the top 5 numerical claims against raw data before presenting findings.
+15. Report sample sizes alongside all effect ratios. Flag any finding with n<15 in either group.
 
 ## Phase Execution
 
@@ -119,6 +131,8 @@ At a high level:
 6. Run 4-layer analysis (descriptive → comparative → portability → synthesis)
 7. Create 5 operational constitutions (master, title, thumbnail, hook, script/structure)
 8. Write an exhaustive synthesis with 15+ ranked insight candidates
+9. **Present findings to user for review** — Show the top 10-15 findings with their evidence and ask "do these look right?" before proceeding to thread writing. This is a mandatory checkpoint — the pipeline should not proceed automatically.
+10. **Self-verify** — Spot-check 5 key claims against raw data before presenting to user
 
 **If `output_mode` is `research_only`**: Stop here. Write the final report and return results to the user.
 
@@ -129,7 +143,7 @@ Read `references/phase2_thread.md` for the complete thread writing protocol.
 Using Phase 1 research, write one finished 9-post Synthesizer-style thread for the configured platform (default: Threads).
 
 Key requirements:
-- Exactly 9 posts: hook + 7 insights + closer/CTA
+- Default 9 posts: hook + 7 insights + closer/CTA. The insight count can be adjusted (5-12) based on how many survive the validation gate. Fewer strong insights is better than padding.
 - Hook selected from the Synthesizer Hook Bank (15 proven formats in the reference file)
 - Every statistic must come from the Phase 1 corpus data
 - Each insight post follows the claim → data → takeaway structure
@@ -157,8 +171,10 @@ Provide the finished thread as copy-paste-ready output. If using Threads as the 
 Read `references/output_structure.md` for the complete folder layout. All output goes into:
 
 ```
-research/youtube-packaging/{creator-slug}/
+{output_dir}/{creator-slug}/
 ```
+
+Where `output_dir` defaults to `research/youtube-packaging/` but can be overridden by the user — see `references/user_config.md`.
 
 This includes raw data, normalized dossiers, analyses, constitutions, the thread, visuals, and logs.
 
@@ -182,6 +198,22 @@ If interrupted, check for `logs/checkpoint.json` on startup. If found, confirm w
 
 After each milestone, write a brief factual progress note to `00_run_report.md`.
 
+### Incremental Updates
+
+If the output directory already contains a previous run for the same channel:
+
+1. Check `logs/checkpoint.json` and `05_video_index.json` for the previous run's data
+2. Ask the user: "I found a previous analysis of {creator} from {date} with {N} videos. Would you like to:
+   a) Run an incremental update (analyze only new videos since the last run)
+   b) Start fresh (re-analyze everything)
+   c) Resume from where the previous run left off"
+3. For incremental updates:
+   - Collect only videos published after the latest video in the existing index
+   - Merge new videos into the existing index
+   - Re-run the full analysis (Steps 5-9) on the merged corpus
+   - Note in the run report which videos are new
+   - Re-download transcripts and thumbnails only for new videos
+
 ## Notes & Exceptions
 
 - If the YouTube API fails or rate-limits, fall back to web search automatically
@@ -189,3 +221,5 @@ After each milestone, write a brief factual progress note to `00_run_report.md`.
 - If thread numbers don't match source corpus, flag discrepancies and correct from source data
 - The pipeline adapts automatically to creator format — interview channels get guest analysis, solo educators get structure analysis, mixed channels get segmented analysis
 - All portability analysis is skipped entirely if no reference channel is provided
+- If the user has previously analyzed this channel, check for existing output in the output directory. Offer to run an incremental update (new videos only) rather than starting from scratch.
+- Comment analysis is optional and API-quota-intensive. Prioritize comments for top 10 and bottom 10 performers only.

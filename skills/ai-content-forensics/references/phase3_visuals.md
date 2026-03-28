@@ -1,6 +1,6 @@
 # Phase 3: Visual Production
 
-Create 9 production-ready carousel visuals — one per thread post. Each visual is generated in three formats: SVG (primary editable format), self-contained HTML/CSS (secondary), and PNG preview (if the environment supports rendering).
+Create one carousel visual per thread post (default 9: hook + 7 insights + closer; adjusted if insight count differs). Each visual is generated in three formats: SVG (primary editable format), self-contained HTML/CSS (secondary), and PNG preview (if the environment supports rendering).
 
 ---
 
@@ -30,7 +30,17 @@ For each asset, generate:
 3. **PNG preview** (if rendering is available in the environment)
 
 For PNG rendering:
-- In Claude Code: Try puppeteer, playwright, or similar headless browser tools if available
+- In Claude Code on macOS: Use Chrome headless if Google Chrome is installed:
+  ```bash
+  cd /path/to/previews/
+  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+    --headless=new --disable-gpu \
+    --screenshot="filename.png" \
+    --window-size=1080,1350 \
+    "file:///path/to/assets/filename.html"
+  ```
+  Note: Use `--headless=new` (not `--headless`). Chrome saves the screenshot to the current working directory, so `cd` to the previews folder first.
+- In Claude Code: Also try puppeteer, playwright, or similar headless browser tools if available
 - In Cowork: Try available rendering tools or MCP tools
 - If no rendering is available, log this in `fallback_log.md` and note that PNGs can be generated manually by opening the HTML files in a browser and screenshotting at 1080x1350
 
@@ -62,6 +72,9 @@ Match each insight to the best visual form. Do not repeat the same chart type ac
 | **Template / Formula Card** | Title patterns, hook structures. Must use EXACT corpus examples only. |
 | **Matrix Card** | Conditional or segmented findings. |
 | **Recap / Saveable Checklist** | Closer slide. Clean summary of all 7 insights. |
+| **Thumbnail Comparison Grid** | Thumbnail visual patterns. Side-by-side top vs bottom performer thumbnails with annotations. |
+| **Scatter Plot** | Correlation visualizations. Feature vs performance with trend line. |
+| **Timeline / Trend Chart** | Temporal analysis. How a metric changed over the time window. |
 
 ---
 
@@ -72,15 +85,15 @@ Match each insight to the best visual form. Do not repeat the same chart type ac
 - Compact corpus audit table or badge set (videos, transcripts, analyses, constitutions)
 - Research cover feel, not a meme
 
-### Assets 2-8 (Insights)
+### Assets 2–N (Insights)
 - One visual per chosen insight, in exact thread order
 - The main number or divergence must be the most visually dominant element on the slide
 - If the insight involves a formula or pattern, include a template card with exact corpus examples
 - If it involves top vs bottom divergence, make contrast instantly legible
 - If it involves a ranking, sort cleanly and highlight the key finding
 
-### Asset 9 (Recap / Closer)
-- Clean summary of all 7 insights
+### Final Asset (Recap / Closer)
+- Clean summary of all insights
 - Actual research scope counts from the closer
 - Saveable, not promotional
 
