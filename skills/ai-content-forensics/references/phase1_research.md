@@ -262,14 +262,31 @@ Exclude any video over ~160 minutes (2.7 hours) — these may exceed the model's
 | 10 videos × avg 110 min | ~$27.50 total |
 | Batch of 9 videos | ~22 minutes wall time |
 
+#### Authentication — CRITICAL
+
+YouTube video analysis requires the **Vertex AI path with OAuth credentials**, NOT a plain API key. A plain API key will return 403 PERMISSION_DENIED on YouTube video features even though it works for text.
+
+The OAuth credentials come from Gemini CLI's sign-in and are stored at `~/.gemini/oauth_creds.json`. You must also set `GOOGLE_CLOUD_PROJECT=creator-ui` (the project NAME, not the numeric ID).
+
 #### Implementation
 
 ```python
-import google.genai as genai
-from google.genai import types
+from google import genai
+from google.genai.types import Part
+from google.oauth2.credentials import Credentials
 import json, time, os
 
-client = genai.Client(api_key=os.environ.get("YOUTUBE_API_KEY") or os.environ.get("GEMINI_API_KEY"))
+# Load Gemini CLI's OAuth credentials for YouTube video access
+with open(os.path.expanduser("~/.gemini/oauth_creds.json")) as f:
+    oauth = json.load(f)
+creds = Credentials(
+    token=oauth.get("access_token"),
+    refresh_token=oauth["refresh_token"],
+    token_uri="https://oauth2.googleapis.com/token",
+    client_id=oauth.get("client_id"),
+    client_secret=oauth.get("client_secret"),
+)
+client = genai.Client(vertexai=True, project="creator-ui", location="us-central1", credentials=creds)
 
 VISUAL_ANALYSIS_PROMPT = """Analyze the visual packaging and production design of this YouTube video comprehensively. Cover ALL of the following:
 
@@ -302,24 +319,24 @@ Any visual changes in the middle vs the opening. Sponsor segment visual treatmen
 
 Be extremely specific. Reference exact timestamps where possible."""
 
-def analyze_video_visuals(video_id, output_dir="raw"):
+def analyze_video_visuals(video_id, output_dir="raw", model="gemini-2.5-flash"):
     start = time.time()
     response = client.models.generate_content(
-        model="gemini-3.1-pro-preview",
+        model=model,
         contents=[
-            types.Part.from_uri(
+            Part.from_uri(
                 file_uri=f"https://www.youtube.com/watch?v={video_id}",
-                mime_type="video/youtube"
+                mime_type="video/mp4",
             ),
             VISUAL_ANALYSIS_PROMPT
         ],
-        config=types.GenerateContentConfig(max_output_tokens=65536)  # CRITICAL — default 8192 truncates
+        config={"max_output_tokens": 65536},  # CRITICAL — default 8192 truncates
     )
     elapsed = time.time() - start
 
     result = {
         "videoId": video_id,
-        "model": "gemini-3.1-pro-preview",
+        "model": model,
         "analysis": response.text,
         "elapsed_seconds": elapsed,
         "chars": len(response.text)
@@ -337,37 +354,37 @@ def analyze_video_visuals(video_id, output_dir="raw"):
 **Transcript extraction** (when Chrome CDP is unavailable):
 ```python
 transcript = client.models.generate_content(
-    model="gemini-3.1-pro-preview",
+    model="gemini-2.5-flash",
     contents=[
-        types.Part.from_uri(file_uri=f"https://www.youtube.com/watch?v={video_id}", mime_type="video/youtube"),
+        Part.from_uri(file_uri=f"https://www.youtube.com/watch?v={video_id}", mime_type="video/mp4"),
         "Transcribe all spoken words verbatim with timestamps every 30 seconds. Format: [MM:SS] text. Include speaker labels."
     ],
-    config=types.GenerateContentConfig(max_output_tokens=65536)
+    config={"max_output_tokens": 65536}
 )
 ```
 
 **Hook comparison** (for natural experiment pairs — Gemini 2.5+ supports up to 10 videos per request):
 ```python
 response = client.models.generate_content(
-    model="gemini-3.1-pro-preview",
+    model="gemini-2.5-flash",
     contents=[
-        types.Part.from_uri(file_uri=f"https://www.youtube.com/watch?v={video_id_a}", mime_type="video/youtube"),
-        types.Part.from_uri(file_uri=f"https://www.youtube.com/watch?v={video_id_b}", mime_type="video/youtube"),
+        Part.from_uri(file_uri=f"https://www.youtube.com/watch?v={video_id_a}", mime_type="video/mp4"),
+        types.Part.from_uri(file_uri=f"https://www.youtube.com/watch?v={video_id_b}", mime_type="video/mp4"),
         "Compare the first 60 seconds of each video. What differs in visual approach, hook structure, energy level, and production style? Which opening is more likely to retain a casual viewer?"
     ],
-    config=types.GenerateContentConfig(max_output_tokens=65536)
+    config={"max_output_tokens": 65536}
 )
 ```
 
 **Clip identification** (for creator_report output mode):
 ```python
 clips = client.models.generate_content(
-    model="gemini-3.1-pro-preview",
+    model="gemini-2.5-flash",
     contents=[
-        types.Part.from_uri(file_uri=f"https://www.youtube.com/watch?v={video_id}", mime_type="video/youtube"),
+        Part.from_uri(file_uri=f"https://www.youtube.com/watch?v={video_id}", mime_type="video/mp4"),
         "Identify the 10 highest-energy moments for standalone clips (30-90s). For each: timestamp range, what's happening, why it works as a clip, suggested title (<60 chars), energy score (1-10). Rank by clip potential. Output as JSON."
     ],
-    config=types.GenerateContentConfig(max_output_tokens=65536)
+    config={"max_output_tokens": 65536}
 )
 ```
 
